@@ -123,7 +123,18 @@ for (key in equations) {
 		}
 	}
 }
-console.log("\nComponent List:")
-console.log(model_elements)
-console.log("\nConnect List:")
-console.log(model_equations)
+//console.log("\nComponent List:")
+//console.log(model_elements)
+//console.log("\nConnect List:")
+//console.log(model_equations)
+
+function get_type(component) {
+	return component.type_specifier
+}
+
+for (key in model_equations) {
+	var comp1 = key.split(',')[0].split('[')[0]
+	var comp2 = model_equations[key][0].split('[')[0]
+	console.log(comp1+": "+get_type(model_elements[comp1]))
+	console.log(comp2+": "+get_type(model_elements[comp2]))
+}
