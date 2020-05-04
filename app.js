@@ -15,8 +15,8 @@ var parser = new ArgumentParser({
 parser.addArgument(
   [ '-o', '--output' ],
   {
-    help: 'Specify output format.',
-    choices: ['html', 'raw-json', 'json', 'docx'],
+    help: 'Specify output format. Specify multiple formats within double quotes separated by ;',
+    choices: ['raw-json', 'json', 'html', 'docx', 'raw-json;json', 'raw-json;html', 'raw-json;docx', 'json;html', 'json;docx', 'html;docx', 'raw-json;json;html', 'raw-json;json;docx', 'raw-json;html;docx', 'json;html;docx', 'raw-json;json;html;docx'],
     defaultValue: 'html'
   }
 )
@@ -51,6 +51,7 @@ parser.addArgument(
   }
 )
 var args = parser.parseArgs()
+outputFormats = args.output.split(';')
 
 const logFile = 'modelica-json.log'
 try {
@@ -73,7 +74,14 @@ logger.level = args.log
 var moFiles = ut.getMoFiles(args.mode, args.file)
 
 // Parse the json representation for moFiles
+var rawJson = pa.getRawJSON(moFiles, args.mode)
+console.log(rawJson)
+
+var json2 = pa.getJSON2(rawJson, moFiles, args.mode, args.output)
+console.log(json2)
+
 var json = pa.getJSON(moFiles, args.mode, args.output)
+console.log(json)
 
 // Get the name array of output files
 var outFile = ut.getOutFile(args.mode, args.file, args.output, args.directory, moFiles, json)
