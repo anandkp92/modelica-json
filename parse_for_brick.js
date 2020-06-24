@@ -1,4 +1,5 @@
 const fs = require('fs')
+const rdflib = require('rdflib')
 var model_elements = {}
 var model_equations = {}
 
@@ -6,8 +7,6 @@ file = 'Buildings.Examples.VAVReheat.Guideline36.json'
 //file = 'Buildings.Examples.VAVReheat.BaseClasses.PartialOpenLoop.json'
 
 function get_model_elements(file, model_elements, equations) {
-	console.log(file)
-	console.log(model_elements)
 	var contents = fs.readFileSync('./raw-json/'+file);
 	var jsonContent = JSON.parse(contents);
 	var rawjson = jsonContent[0]
@@ -91,13 +90,13 @@ equations = {}
 var return_values = get_model_elements(file, model_elements, equations)
 model_elements = return_values[0]
 equations = return_values[1]
-for (key in equations) {
+for (var key in equations) {
 	equation_type_list = equations[key]
 	//console.log(equation_type_list)	
-	for (equation_idx in equation_type_list) {
+	for (var equation_idx in equation_type_list) {
 		equation_dict = equation_type_list[equation_idx]
 		if ('equation' in equation_dict) {
-			for (connect_idx in equation_dict.equation) {
+			for (var connect_idx in equation_dict.equation) {
 				connect_dict = equation_dict.equation[connect_idx]
 				//console.log(connect_dict)
 				if ('connect_clause' in connect_dict) {
@@ -123,18 +122,129 @@ for (key in equations) {
 		}
 	}
 }
-//console.log("\nComponent List:")
-//console.log(model_elements)
-//console.log("\nConnect List:")
-//console.log(model_equations)
+
+const fluid_sensor_brick_map = {
+	'TemperatureTwoPort': ':Temperature_Sensor',
+	'Temperature': ':Temperature_Sensor',
+	'RelativeTemperature': ':Temperature_Sensor',
+	'TemperatureWetBulbTwoPort': ':Temperature_Sensor',
+	'VolumeFlowRate': ':Flow_Sensor',
+	'RelativeHumidityTwoPort': ':Humidity_Sensor',
+	'RelativeHumidity': ':Humidity_Sensor',
+	'Pressure': ':Pressure_Sensor',
+	'RelativePressure': ':Pressure_Sensor'
+}
 
 function get_type(component) {
 	return component.type_specifier
 }
 
+function get_brick_type(component) {
+	if (typeof component.brick_type === 'undefined') {
+		return false
+	}
+	else {
+		return component.brick_type
+	}
+}
+
+var model_elements_brick = {}
+for (var key in model_elements) { 
+	var model_element = model_elements[key]
+	var model_element_type = model_element.type_specifier
+	// console.log(key+" type: "+model_element_type)
+	if (model_element_type.startsWith("Buildings")) {
+		model_element_type = model_element_type.substring(10)
+	}
+	var model_element_type_split = model_element_type.split('.')
+
+	if (model_element_type_split[0] === 'Controls') {
+		// console.log("controller "+key+": "+model_element_type)
+	}
+	else if (model_element_type_split[0] === 'Fluid') {
+		if (model_element_type_split[1] === 'Sensors') {
+			var_sensor_type = model_element_type_split[2]
+			// console.log("fluid sensors "+key+": brick"+fluid_sensor_brick_map[var_sensor_type])
+			model_elements[key]['brick_type'] = fluid_sensor_brick_map[var_sensor_type]
+		}
+	}
+	else {
+		// console.log("unclassified "+key+ " type: "+model_element_type)
+	}
+}
+
+routing_type_list = ["Modelica.Blocks.Routing.RealPassThrough", "Modelica.Blocks.Routing.Multiplex5"]
+
 for (key in model_equations) {
-	var comp1 = key.split(',')[0].split('[')[0]
-	var comp2 = model_equations[key][0].split('[')[0]
-	console.log(comp1+": "+get_type(model_elements[comp1]))
-	console.log(comp2+": "+get_type(model_elements[comp2]))
+	var comp1_variable = key.split(',')[0].split('[')[0]
+	var comp2_variable = model_equations[key][0].split('[')[0]
+	//console.log(comp1+": "+get_type(model_elements[comp1]))
+	//console.log(comp2+": "+get_type(model_elements[comp2]))
+
+	var comp1 = model_elements[comp1_variable]
+	var comp2 = model_elements[comp2_variable]
+
+	if (get_brick_type(comp1) && get_brick_type(comp2)) {
+		// console.log("brick for both")
+		// console.log(comp1_variable+": "+get_type(comp1))
+		// console.log(comp2_variable+": "+get_type(comp2))
+		// console.log()
+	}
+	else if (routing_type_list.includes(get_type(comp1)) && get_brick_type(comp2)) {
+		model_elements[comp1_variable]['brick_type'] = get_brick_type(comp2)
+		// console.log(comp1_variable+": "+get_type(comp1))
+		// console.log(comp2_variable+": "+get_type(comp2))
+	}
+	else if (routing_type_list.includes(get_type(comp2)) && get_brick_type(comp1)) {
+		model_elements[comp2_variable]['brick_type'] = get_brick_type(comp1)
+		// console.log(comp1_variable+": "+get_brick_type(comp1))
+		// console.log(comp2_variable+": "+get_type(comp2))
+	}
+	else if (get_type(comp2) == "Modelica.Blocks.Routing.DeMultiplex5") {
+		// model_elements[comp2_variable]['brick_type'] = get_brick_type(comp1)
+		// console.log(comp1_variable+": "+get_brick_type(comp1))
+		// console.log(comp1_variable+": "+get_type(comp1))
+		// console.log(comp2_variable+": "+get_type(comp2))
+	}
+	else {
+		// console.log(comp1_variable+": "+get_type(comp1))
+		// console.log(comp2_variable+": "+get_type(comp2))
+	}
+}
+
+console.log("************************************************************************************************************************************")
+
+for (key in model_equations) {
+	var comp1_variable = key.split(',')[0].split('[')[0]
+	var comp2_variable = model_equations[key][0].split('[')[0]
+	//console.log(comp1+": "+get_type(model_elements[comp1]))
+	//console.log(comp2+": "+get_type(model_elements[comp2]))
+
+	var comp1 = model_elements[comp1_variable]
+	var comp2 = model_elements[comp2_variable]
+
+	if (get_brick_type(comp1) && get_brick_type(comp2)) {
+		console.log("\nbrick for both")
+		console.log(comp1_variable+": "+get_type(comp1)+ " "+get_brick_type(comp1))
+		console.log(comp2_variable+": "+get_type(comp2)+ " "+get_brick_type(comp2))
+		console.log()
+	}
+	else if (get_brick_type(comp2)) {
+		console.log("\nbrick for one")
+		console.log(comp1_variable+": "+get_type(comp1))
+		console.log(comp2_variable+": "+get_type(comp2)+ " " +get_brick_type(comp2))
+		console.log()
+		// model_elements[comp1_variable]['brick_type'] = get_brick_type(comp2)
+	}
+	else if (get_brick_type(comp1)) {
+		console.log("\nbrick for one-2")
+		console.log(comp1_variable+": "+get_type(comp1)+ " " +get_brick_type(comp1))
+		console.log(comp2_variable+": "+get_type(comp2))
+		console.log()
+		// model_elements[comp2_variable]['brick_type'] = get_brick_type(comp1)
+	}
+	else {
+		console.log(comp1_variable+": "+get_type(comp1))
+		console.log(comp2_variable+": "+get_type(comp2))
+	}
 }
